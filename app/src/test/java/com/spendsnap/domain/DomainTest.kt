@@ -269,3 +269,12 @@ class ReviewBeforeSavingTest {
         assertTrue(ReviewIssue.AWAITING_REVIEW in merged.reviewIssues)
     }
 }
+
+class CashTest {
+    @Test fun `cash is filterable and never detected`() {
+        val list = listOf(tx(1, app = PaymentApp.CASH, description = "Chai"), tx(2, app = PaymentApp.GOOGLE_PAY))
+        assertEquals(listOf(1L), History.filter(list, HistoryFilter(cash = true)).map { it.id })
+        assertNull(PaymentApp.fromPackage(null))
+        assertNull(PaymentApp.CASH.packageName)
+    }
+}

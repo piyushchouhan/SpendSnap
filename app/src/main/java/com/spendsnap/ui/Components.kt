@@ -1,5 +1,6 @@
 package com.spendsnap.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.Card
@@ -23,14 +25,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import com.spendsnap.domain.Inr
 import com.spendsnap.domain.PaymentApp
 import com.spendsnap.domain.Transaction
@@ -72,16 +81,56 @@ fun appTint(app: PaymentApp): AppTint {
     return when (app) {
         PaymentApp.GOOGLE_PAY -> AppTint(extra.googlePay, extra.onGooglePay)
         PaymentApp.PHONEPE -> AppTint(extra.phonePe, extra.onPhonePe)
+        PaymentApp.CASH -> AppTint(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
         PaymentApp.OTHER -> AppTint(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
+/** Launcher icons of the installed payment apps, decoded once. Keyed by package name. */
+private val installedIcons = mutableMapOf<String, ImageBitmap?>()
+
+/**
+ * The payment app's own launcher icon as installed on this phone, so no brand artwork ships
+ * with SpendSnap. Null when the app has no package (Cash, Other) or isn't installed.
+ */
+@Composable
+fun installedAppIcon(app: PaymentApp): ImageBitmap? {
+    val pkg = app.packageName ?: return null
+    val pm = LocalContext.current.packageManager
+    return remember(pkg) {
+        installedIcons.getOrPut(pkg) {
+            runCatching { pm.getApplicationIcon(pkg).toBitmap(144, 144).asImageBitmap() }.getOrNull()
+        }
+    }
+}
+
+/** Small app mark for "Paid with" choices: the real app icon, or a cash glyph. */
+@Composable
+fun PaymentAppMark(app: PaymentApp, size: Dp = 18.dp) {
+    val icon = installedAppIcon(app)
+    when {
+        icon != null -> Image(icon, null, Modifier.size(size).clip(CircleShape))
+        app == PaymentApp.CASH -> Icon(Icons.Rounded.Payments, null, Modifier.size(size))
+        else -> Unit
+    }
+}
+
+/**
+ * Google Pay / PhonePe show their own installed icon. Cash shows a notes glyph. Anything else
+ * falls back to [icon] or the first [letter] on a tinted circle.
+ */
 @Composable
 fun AppAvatar(app: PaymentApp, letter: String? = null, icon: ImageVector? = null) {
+    val appIcon = installedAppIcon(app)
+    if (appIcon != null) {
+        Image(appIcon, app.label, Modifier.size(40.dp).clip(CircleShape))
+        return
+    }
     val tint = appTint(app)
+    val glyph = icon ?: Icons.Rounded.Payments.takeIf { app == PaymentApp.CASH }
     Box(Modifier.size(40.dp).background(tint.container, CircleShape), contentAlignment = Alignment.Center) {
-        if (icon != null) {
-            Icon(icon, null, tint = tint.content, modifier = Modifier.size(22.dp))
+        if (glyph != null) {
+            Icon(glyph, null, tint = tint.content, modifier = Modifier.size(22.dp))
         } else {
             Text(letter.orEmpty(), color = tint.content, fontSize = 16.sp, fontWeight = FontWeight.Medium)
         }

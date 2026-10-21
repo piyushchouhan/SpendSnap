@@ -375,6 +375,7 @@ private fun ReadyContent(form: ReviewForm, update: (ReviewForm.() -> ReviewForm)
             Column {
                 Text(
                     when {
+                        form.manual && form.app == PaymentApp.CASH -> "Paid in cash"
                         form.manual -> "Entered manually"
                         form.app == PaymentApp.OTHER -> "Read from screenshot"
                         else -> "Detected in ${form.app.label}"
@@ -441,14 +442,15 @@ private fun ReadyContent(form: ReviewForm, update: (ReviewForm.() -> ReviewForm)
 
         Column {
             Text("Paid with", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
-            val apps = listOf(PaymentApp.GOOGLE_PAY, PaymentApp.PHONEPE)
+            val apps = listOf(PaymentApp.GOOGLE_PAY, PaymentApp.PHONEPE, PaymentApp.CASH)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 apps.forEachIndexed { i, app ->
                     SegmentedButton(
                         selected = form.app == app,
                         onClick = { update { copy(app = app) } },
                         shape = SegmentedButtonDefaults.itemShape(i, apps.size),
-                    ) { Text(app.label) }
+                        icon = { PaymentAppMark(app) },
+                    ) { Text(app.label, maxLines = 1) }
                 }
             }
         }

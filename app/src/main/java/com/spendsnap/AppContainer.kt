@@ -52,7 +52,7 @@ class AppSettings(context: Context) {
     fun detects(app: PaymentApp): Boolean = when (app) {
         PaymentApp.GOOGLE_PAY -> googlePayEnabled
         PaymentApp.PHONEPE -> phonePeEnabled
-        PaymentApp.OTHER -> false
+        PaymentApp.CASH, PaymentApp.OTHER -> false
     }
 
     val theme = MutableStateFlow(ThemeMode.entries.firstOrNull { it.name == prefs.getString("theme", null) } ?: ThemeMode.SYSTEM)

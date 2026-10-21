@@ -4,6 +4,8 @@ enum class PaymentApp(val packageName: String?, val label: String) {
     // Package names verified on the Pixel 9 with `adb shell pm list packages`.
     GOOGLE_PAY("com.google.android.apps.nbu.paisa.user", "Google Pay"),
     PHONEPE("com.phonepe.app", "PhonePe"),
+    /** Manual entries only: nothing to detect. */
+    CASH(null, "Cash"),
     OTHER(null, "Other");
 
     companion object {

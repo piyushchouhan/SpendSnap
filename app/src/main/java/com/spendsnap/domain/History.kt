@@ -16,11 +16,12 @@ data class HistoryFilter(
     val query: String = "",
     val googlePay: Boolean = false,
     val phonePe: Boolean = false,
+    val cash: Boolean = false,
     val verified: Boolean = false,
     val unverified: Boolean = false,
     val sort: HistorySort = HistorySort.NEWEST,
 ) {
-    val isFiltering: Boolean get() = query.isNotBlank() || googlePay || phonePe || verified || unverified
+    val isFiltering: Boolean get() = query.isNotBlank() || googlePay || phonePe || cash || verified || unverified
 }
 
 /** [totalPaise] counts only entries that count toward totals, same as the dashboard. */
@@ -44,8 +45,9 @@ object History {
         val list = all.filter { t ->
             val textHit = q.isEmpty() || t.description.orEmpty().lowercase().contains(q) ||
                 (digits.isNotEmpty() && digits[0].isDigit() && t.amountPaise?.let(Inr::toEditable)?.contains(digits) == true)
-            val appHit = !(f.googlePay || f.phonePe) ||
-                (f.googlePay && t.paymentApp == PaymentApp.GOOGLE_PAY) || (f.phonePe && t.paymentApp == PaymentApp.PHONEPE)
+            val appHit = !(f.googlePay || f.phonePe || f.cash) ||
+                (f.googlePay && t.paymentApp == PaymentApp.GOOGLE_PAY) || (f.phonePe && t.paymentApp == PaymentApp.PHONEPE) ||
+                (f.cash && t.paymentApp == PaymentApp.CASH)
             val statusHit = !(f.verified || f.unverified) || (f.verified && t.isVerified) || (f.unverified && t.isUnverified)
             textHit && appHit && statusHit
         }

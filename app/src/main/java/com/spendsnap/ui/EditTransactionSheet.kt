@@ -180,10 +180,15 @@ fun EditTransactionSheet(id: Long, onDismiss: () -> Unit, onDeleted: (Transactio
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            val apps = listOf(PaymentApp.GOOGLE_PAY, PaymentApp.PHONEPE)
+            val apps = listOf(PaymentApp.GOOGLE_PAY, PaymentApp.PHONEPE, PaymentApp.CASH)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 apps.forEachIndexed { i, a ->
-                    SegmentedButton(selected = app == a, onClick = { app = a }, shape = SegmentedButtonDefaults.itemShape(i, apps.size)) { Text(a.label) }
+                    SegmentedButton(
+                        selected = app == a,
+                        onClick = { app = a },
+                        shape = SegmentedButtonDefaults.itemShape(i, apps.size),
+                        icon = { PaymentAppMark(a) },
+                    ) { Text(a.label, maxLines = 1) }
                 }
             }
 
