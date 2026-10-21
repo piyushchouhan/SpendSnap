@@ -1,0 +1,11 @@
+Transaction Successful
+09:41 pm on 20 Oct 2026
+Paid to
+Chai Point
+₹ 1,250.50
+Message: Team snacks
+Transaction ID
+T2610202141123456789012
+Debited from
+XXXXXX1234
+UTR: 629311845599

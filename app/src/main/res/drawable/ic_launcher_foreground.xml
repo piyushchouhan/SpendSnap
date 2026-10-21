@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App icon concept 1e "Price tag" from the SpendSnap design project (108 dp adaptive canvas). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:rotation="-24">
+        <path
+            android:fillColor="#95D5A8"
+            android:pathData="M44,34 H76 A6,6 0 0 1 82,40 V68 A6,6 0 0 1 76,74 H44 L27,54 Z"
+            android:strokeColor="#95D5A8"
+            android:strokeLineJoin="round"
+            android:strokeWidth="4" />
+        <path
+            android:fillColor="@color/ic_launcher_background"
+            android:pathData="M37,54 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+        <group
+            android:pivotX="54"
+            android:pivotY="53"
+            android:scaleX="0.8"
+            android:scaleY="0.8"
+            android:translateX="9"
+            android:translateY="1">
+            <path
+                android:pathData="M45,38 H63 M45,45 H63 M49,38 C58,38 61,41 61,45 C61,50 57,53 49,53 H46 L60,68"
+                android:strokeColor="@color/ic_launcher_background"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeWidth="4.5" />
+        </group>
+    </group>
+</vector>

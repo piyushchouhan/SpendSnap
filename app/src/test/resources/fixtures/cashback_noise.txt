@@ -1,0 +1,5 @@
+Payment successful
+₹300
+Paid to Fresh Mart
+You won ₹25 cashback
+Bank balance: ₹12,345.00

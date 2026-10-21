@@ -1,0 +1,10 @@
+₹1
+Paid to Ravi Kumar Sharma
+Payment successful
+Note
+Testing
+20 Oct 2026, 9:41 pm
+UPI transaction ID
+629311845521
+To: payee@upi
+From: HDFC Bank 1234
