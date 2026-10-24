@@ -3,8 +3,10 @@ package com.spendsnap
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import com.spendsnap.ai.AiEngineKind
 import com.spendsnap.ai.AiInsights
 import com.spendsnap.ai.GeminiClient
+import com.spendsnap.ai.GeminiNanoEngine
 import com.spendsnap.data.AppDatabase
 import com.spendsnap.data.TransactionRepository
 import com.spendsnap.domain.PaymentApp
@@ -21,7 +23,9 @@ class AppContainer(context: Context) {
     val repository = TransactionRepository(AppDatabase.create(context))
     val settings = AppSettings(context)
     val ocr by lazy { OcrProcessor(context) }
-    val ai by lazy { AiInsights(repository, settings, GeminiClient(BuildConfig.GEMINI_API_KEY, BuildConfig.GEMINI_MODEL)) }
+    val nano by lazy { GeminiNanoEngine() }
+    val cloud by lazy { GeminiClient(BuildConfig.GEMINI_API_KEY, BuildConfig.GEMINI_MODEL) }
+    val ai by lazy { AiInsights(repository, settings) { if (settings.aiEngine.value == AiEngineKind.ON_DEVICE) nano else cloud } }
 
     /** Screenshot shared to the app (or picked in-app), waiting to be OCR'd. Never copied or stored. */
     val pendingScreenshot = MutableStateFlow<Uri?>(null)
@@ -70,6 +74,14 @@ class AppSettings(context: Context) {
     }
 
     var autoCategorize by flag("ai_categorize", true)
+
+    /** On-device (Gemini Nano) by default: nothing leaves the phone unless the user picks Cloud. */
+    val aiEngine = MutableStateFlow(AiEngineKind.entries.firstOrNull { it.name == prefs.getString("ai_engine", null) } ?: AiEngineKind.ON_DEVICE)
+
+    fun setAiEngine(kind: AiEngineKind) {
+        aiEngine.value = kind
+        prefs.edit().putString("ai_engine", kind.name).apply()
+    }
 
     private fun text(key: String) = object : kotlin.properties.ReadWriteProperty<Any?, String?> {
         override fun getValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>) = prefs.getString(key, null)

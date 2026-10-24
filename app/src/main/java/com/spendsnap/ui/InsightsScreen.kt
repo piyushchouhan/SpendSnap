@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.PendingActions
+import androidx.compose.material.icons.rounded.PhonelinkLock
 import androidx.compose.material.icons.rounded.QuestionAnswer
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Restaurant
@@ -78,6 +79,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.spendsnap.AppContainer
+import com.spendsnap.ai.AiEngineKind
 import com.spendsnap.ai.AskResult
 import com.spendsnap.ai.CategoryShare
 import com.spendsnap.ai.Insights
@@ -171,9 +173,11 @@ fun InsightsScreen(onReview: () -> Unit, onHistory: () -> Unit, modifier: Modifi
     val vm = viewModel { InsightsViewModel(container) }
     val all = vm.all.collectAsStateWithLifecycle().value
     val aiOn by container.settings.aiEnabled.collectAsStateWithLifecycle()
+    val engine by container.settings.aiEngine.collectAsStateWithLifecycle()
+    val onDevice = engine == AiEngineKind.ON_DEVICE
     var showConsent by remember { mutableStateOf(false) }
 
-    LaunchedEffect(aiOn) {
+    LaunchedEffect(aiOn, engine) {
         if (aiOn) {
             vm.loadSummary(force = false)
             vm.categorize()
@@ -192,15 +196,20 @@ fun InsightsScreen(onReview: () -> Unit, onHistory: () -> Unit, modifier: Modifi
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Icon(if (aiOn) Icons.Rounded.Cloud else Icons.Rounded.CloudOff, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (aiOn) "Gemini API" else "AI off", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val (chipIcon, chipText) = when {
+                    !aiOn -> Icons.Rounded.CloudOff to "AI off"
+                    onDevice -> Icons.Rounded.PhonelinkLock to "On-device AI"
+                    else -> Icons.Rounded.Cloud to "Gemini API"
+                }
+                Icon(chipIcon, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(chipText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
         if (!aiOn) {
-            AiOffCard(configured = container.ai.isConfigured, onTurnOn = { showConsent = true })
+            AiOffCard(configured = container.ai.isConfigured, onDevice = onDevice, onTurnOn = { showConsent = true })
         } else {
-            SummaryCard(vm.summary, vm.summaryLoading, onRefresh = { vm.loadSummary(force = true) })
+            SummaryCard(vm.summary, vm.summaryLoading, onDevice, onRefresh = { vm.loadSummary(force = true) })
             AskSection(vm.asked, vm.answer, onAsk = vm::ask, onClear = vm::clearAnswer, onHistory = onHistory, total = all?.size ?: 0)
         }
 
@@ -240,11 +249,12 @@ fun InsightsScreen(onReview: () -> Unit, onHistory: () -> Unit, modifier: Modifi
             }
         }
 
-        HowItWorks()
+        HowItWorks(onDevice)
     }
 
     if (showConsent) {
         AiConsentDialog(
+            onDevice = onDevice,
             onDismiss = { showConsent = false },
             onConfirm = {
                 showConsent = false
@@ -255,7 +265,7 @@ fun InsightsScreen(onReview: () -> Unit, onHistory: () -> Unit, modifier: Modifi
 }
 
 @Composable
-private fun AiOffCard(configured: Boolean, onTurnOn: () -> Unit) {
+private fun AiOffCard(configured: Boolean, onDevice: Boolean, onTurnOn: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Column(
         Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 32.dp),
@@ -267,7 +277,9 @@ private fun AiOffCard(configured: Boolean, onTurnOn: () -> Unit) {
         }
         Text("AI Insights is off", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 4.dp))
         Text(
-            if (configured) {
+            if (onDevice) {
+                "Turn it on for weekly summaries, automatic categories and answers about your spending. Everything runs with Gemini Nano on this phone."
+            } else if (configured) {
                 "Turn it on for weekly summaries, automatic categories and answers about your spending, powered by Google’s Gemini API."
             } else {
                 "This build has no Gemini API key. Add it to api.txt in the project and rebuild."
@@ -281,7 +293,7 @@ private fun AiOffCard(configured: Boolean, onTurnOn: () -> Unit) {
 }
 
 @Composable
-private fun SummaryCard(summary: Summary?, loading: Boolean, onRefresh: () -> Unit) {
+private fun SummaryCard(summary: Summary?, loading: Boolean, onDevice: Boolean, onRefresh: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().background(scheme.tertiaryContainer, RoundedCornerShape(28.dp)).padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -303,7 +315,7 @@ private fun SummaryCard(summary: Summary?, loading: Boolean, onRefresh: () -> Un
             summary.note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = scheme.onTertiaryContainer, modifier = Modifier.padding(top = 8.dp)) }
         }
         Text(
-            if (summary?.fromAi == true) {
+            if (summary?.fromAi == true && !onDevice) {
                 "Numbers are calculated on this phone from your saved payments. Gemini only writes the wording."
             } else {
                 "Written on this phone from your saved payments. Figures match History."
@@ -473,7 +485,7 @@ private fun ForecastCard(all: List<Transaction>, now: Instant, zone: ZoneId) {
 }
 
 @Composable
-private fun HowItWorks() {
+private fun HowItWorks(onDevice: Boolean) {
     val scheme = MaterialTheme.colorScheme
     Row(
         Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().border(1.dp, scheme.outlineVariant, RoundedCornerShape(16.dp)).padding(16.dp),
@@ -483,9 +495,15 @@ private fun HowItWorks() {
         Column {
             Text("How AI Insights works", style = MaterialTheme.typography.titleSmall)
             Text(
-                "Uses Google’s Gemini API over the internet. Amounts, totals and the estimate are calculated on this phone; " +
-                    "Gemini only reads your question, writes the summary wording and suggests categories for unfamiliar payees, " +
-                    "so it can occasionally get a category wrong. Screenshots, UPI references and account numbers are never sent.",
+                if (onDevice) {
+                    "Runs with Gemini Nano through Android AICore on this Pixel. Your payments never leave the phone. " +
+                        "Amounts are calculated from your saved entries; the AI only writes the wording and suggests categories, " +
+                        "so it can occasionally get a category wrong."
+                } else {
+                    "Uses Google’s Gemini API over the internet. Amounts, totals and the estimate are calculated on this phone; " +
+                        "Gemini only reads your question, writes the summary wording and suggests categories for unfamiliar payees, " +
+                        "so it can occasionally get a category wrong. Screenshots, UPI references and account numbers are never sent."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -518,7 +536,7 @@ private fun iconFor(category: SpendCategory?): ImageVector = when (category) {
 
 /** Explains exactly what goes to Google before AI Insights is switched on. */
 @Composable
-fun AiConsentDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+fun AiConsentDialog(onDevice: Boolean, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -526,12 +544,28 @@ fun AiConsentDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
         title = { Text("Turn on AI Insights?", textAlign = TextAlign.Center) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("SpendSnap will use Google’s Gemini API over the internet. It sends only:")
-                listOf(
-                    Icons.Rounded.QuestionAnswer to "The questions you ask",
-                    Icons.Rounded.Summarize to "This week’s totals per category, for the summary",
-                    Icons.Rounded.Category to "Payee names the app can’t categorise itself (no amounts)",
-                    Icons.Rounded.CloudOff to "Never: screenshots, UPI references, account numbers or screen text",
+                Text(
+                    if (onDevice) {
+                        "SpendSnap will use Gemini Nano, the model Android keeps on this Pixel for AI features."
+                    } else {
+                        "SpendSnap will use Google’s Gemini API over the internet. It sends only:"
+                    },
+                )
+                (
+                    if (onDevice) {
+                        listOf(
+                            Icons.Rounded.PhonelinkLock to "Runs entirely on this phone through Android AICore",
+                            Icons.Rounded.CloudOff to "Nothing is sent to any server",
+                            Icons.Rounded.Category to "Writes summaries, answers questions and suggests categories",
+                        )
+                    } else {
+                        listOf(
+                            Icons.Rounded.QuestionAnswer to "The questions you ask",
+                            Icons.Rounded.Summarize to "This week’s totals per category, for the summary",
+                            Icons.Rounded.Category to "Payee names the app can’t categorise itself (no amounts)",
+                            Icons.Rounded.CloudOff to "Never: screenshots, UPI references, account numbers or screen text",
+                        )
+                    }
                 ).forEach { (icon, text) ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(icon, null, tint = scheme.primary, modifier = Modifier.size(20.dp))

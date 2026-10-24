@@ -70,6 +70,8 @@ dependencies {
 
     // Bundled on-device model: no Play Services download, nothing leaves the phone.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Gemini Nano through Android AICore (on-device AI engine for Insights).
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
 
     testImplementation("junit:junit:4.13.2")
     // Real org.json for JVM unit tests (Android's copy is a stub there).

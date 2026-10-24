@@ -10,14 +10,15 @@ import org.json.JSONObject
 class AiException(message: String) : Exception(message)
 
 /**
- * Minimal Gemini API client (REST generateContent). The key is compiled in from api.txt;
+ * Cloud engine: minimal Gemini API client (REST generateContent). The key is compiled in from api.txt;
  * there is no backend. Callers decide what data goes into [prompt].
  */
-class GeminiClient(private val apiKey: String, private val model: String) {
-    val isConfigured: Boolean get() = apiKey.isNotBlank()
+class GeminiClient(private val apiKey: String, private val model: String) : AiEngine {
+    override val onDevice = false
+    override val isConfigured: Boolean get() = apiKey.isNotBlank()
 
     /** Returns the model's text; with [schema] the text is JSON matching it. */
-    suspend fun generate(system: String, prompt: String, schema: JSONObject? = null): String = withContext(Dispatchers.IO) {
+    override suspend fun generate(system: String, prompt: String, schema: JSONObject?): String = withContext(Dispatchers.IO) {
         if (!isConfigured) throw AiException("No Gemini API key in this build")
         val body = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))

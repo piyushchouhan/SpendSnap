@@ -111,3 +111,11 @@ class GeminiResponseTest {
         }
     }
 }
+
+class AiJsonTest {
+    @Test fun `strips fences and prose from small-model replies`() {
+        assertEquals("""{"kind":"TOTAL"}""", AiJson.extract("```json\n{\"kind\":\"TOTAL\"}\n```"))
+        assertEquals("""[{"a":1}]""", AiJson.extract("Here you go: [{\"a\":1}] Hope this helps"))
+        assertEquals("plain", AiJson.extract("plain"))
+    }
+}

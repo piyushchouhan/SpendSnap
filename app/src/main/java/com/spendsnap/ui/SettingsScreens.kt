@@ -13,6 +13,8 @@ import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.PhonelinkLock
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Download
@@ -28,7 +30,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.mlkit.genai.common.DownloadStatus
+import com.spendsnap.BuildConfig
 import com.spendsnap.ThemeMode
+import com.spendsnap.ai.AiEngineKind
+import com.spendsnap.ai.NanoState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +47,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,7 +95,11 @@ fun SettingsScreen(onDetection: () -> Unit, onPrivacy: () -> Unit, onMessage: (S
     var diagnostics by remember { mutableStateOf(settings.diagnosticsEnabled) }
     val aiOn by settings.aiEnabled.collectAsStateWithLifecycle()
     var categorize by remember { mutableStateOf(settings.autoCategorize) }
-    var showAiConsent by remember { mutableStateOf(false) }
+    val engine by settings.aiEngine.collectAsStateWithLifecycle()
+    var consentFor by remember { mutableStateOf<AiEngineKind?>(null) }
+    var nanoState by remember { mutableStateOf<NanoState?>(null) }
+    var nanoProgress by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(engine) { if (engine == AiEngineKind.ON_DEVICE) nanoState = container.nano.state() }
     LifecycleResumeEffect(Unit) {
         accessibilityOn = isAccessibilityEnabled(context)
         onPauseOrDispose { }
@@ -136,12 +147,62 @@ fun SettingsScreen(onDetection: () -> Unit, onPrivacy: () -> Unit, onMessage: (S
         GroupLabel("AI Insights")
         SwitchRow(
             Icons.Rounded.AutoAwesome, "AI Insights",
-            if (aiOn) "Summaries, answers and category suggestions via Google’s Gemini API" else "Off. Nothing is sent to any server",
+            when {
+                !aiOn -> "Off. No AI runs"
+                engine == AiEngineKind.ON_DEVICE -> "Summaries, answers and categories with Gemini Nano on this phone"
+                else -> "Summaries, answers and categories via Google’s Gemini API (cloud)"
+            },
             aiOn,
-        ) { on -> if (on) showAiConsent = true else settings.setAiEnabled(false) }
+        ) { on -> if (on) consentFor = engine else settings.setAiEnabled(false) }
+
+        Text(
+            "AI engine",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 56.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+        )
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(start = 56.dp, end = 16.dp)) {
+            AiEngineKind.entries.forEachIndexed { i, kind ->
+                SegmentedButton(
+                    selected = engine == kind,
+                    onClick = {
+                        // Moving to the cloud while AI is on sends data off the phone: ask first.
+                        if (kind == AiEngineKind.CLOUD && aiOn && engine != kind) consentFor = kind else settings.setAiEngine(kind)
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(i, AiEngineKind.entries.size),
+                ) { Text(if (kind == AiEngineKind.ON_DEVICE) "On-device (Nano)" else "Cloud (API)", maxLines = 1) }
+            }
+        }
+        if (engine == AiEngineKind.ON_DEVICE) {
+            SettingRow(
+                Icons.Rounded.PhonelinkLock, "Gemini Nano",
+                nanoProgress ?: nanoState?.label ?: "Checking…",
+            ) {
+                if (nanoState == NanoState.DOWNLOADABLE && nanoProgress == null) {
+                    TextButton(onClick = {
+                        scope.launch {
+                            container.nano.download().collect { s ->
+                                nanoProgress = when (s) {
+                                    is DownloadStatus.DownloadStarted -> "Starting download…"
+                                    is DownloadStatus.DownloadProgress -> "Downloading… ${s.totalBytesDownloaded / 1_000_000} MB"
+                                    is DownloadStatus.DownloadFailed -> "Download failed: ${s.e.message}"
+                                    else -> null
+                                }
+                            }
+                            nanoState = container.nano.state()
+                        }
+                    }) { Text("Download") }
+                }
+            }
+        } else {
+            SettingRow(
+                Icons.Rounded.Cloud, "Gemini API",
+                if (container.cloud.isConfigured) "Key from api.txt · ${BuildConfig.GEMINI_MODEL}" else "No API key in this build (add it to api.txt)",
+            )
+        }
         SwitchRow(
             Icons.Rounded.Category, "Auto-categorize payments",
-            if (categorize) "Rules on this phone first; Gemini suggests the rest" else "Off. Only on-phone rules and your own categories",
+            if (categorize) "Rules on this phone first; the AI suggests the rest" else "Off. Only on-phone rules and your own categories",
             categorize,
         ) { categorize = it; settings.autoCategorize = it }
 
@@ -179,8 +240,16 @@ fun SettingsScreen(onDetection: () -> Unit, onPrivacy: () -> Unit, onMessage: (S
         ) { diagnostics = it; settings.diagnosticsEnabled = it }
     }
 
-    if (showAiConsent) {
-        AiConsentDialog(onDismiss = { showAiConsent = false }, onConfirm = { showAiConsent = false; settings.setAiEnabled(true) })
+    consentFor?.let { kind ->
+        AiConsentDialog(
+            onDevice = kind == AiEngineKind.ON_DEVICE,
+            onDismiss = { consentFor = null },
+            onConfirm = {
+                consentFor = null
+                settings.setAiEngine(kind)
+                settings.setAiEnabled(true)
+            },
+        )
     }
 
     if (confirmDeleteAll) {

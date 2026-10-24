@@ -13,7 +13,7 @@ data class Summary(val text: String, val fromAi: Boolean, val note: String? = nu
 data class AskResult(val answer: Answer, val note: String? = null)
 
 /**
- * The three things Gemini is used for. Each sends the minimum needed:
+ * The three things the AI engine is used for. With the cloud engine each sends the minimum needed:
  * - summary: pre-formatted weekly totals per category (no individual payments)
  * - ask: only the question text
  * - categorize: only payee descriptions the on-phone rules don't recognise (no amounts)
@@ -22,16 +22,18 @@ data class AskResult(val answer: Answer, val note: String? = null)
 class AiInsights(
     private val repository: TransactionRepository,
     private val settings: AppSettings,
-    private val gemini: GeminiClient,
+    /** The engine chosen in Settings, read on every call so a switch applies immediately. */
+    private val engine: () -> AiEngine,
 ) {
-    val isConfigured: Boolean get() = gemini.isConfigured
+    val isConfigured: Boolean get() = engine().isConfigured
 
     suspend fun summary(all: List<Transaction>, force: Boolean): Summary {
         val week = Insights.week(all, Instant.now(), ZoneId.systemDefault())
         val local = Insights.localSummary(week)
         if (week.count == 0) return Summary(local, fromAi = false)
         val facts = Insights.summaryFacts(week)
-        val key = facts.toString()
+        val gemini = engine()
+        val key = "${gemini.onDevice}|$facts"
         if (!force && settings.summaryKey == key) settings.summaryText?.let { return Summary(it, fromAi = true) }
         return try {
             val text = gemini.generate(
@@ -56,7 +58,7 @@ class AiInsights(
         val now = Instant.now()
         val zone = ZoneId.systemDefault()
         return try {
-            val json = gemini.generate(
+            val json = engine().generate(
                 system = "Turn the user's question about their own UPI spending (English, Hindi or Hinglish) into a query. " +
                     "Today is ${now.atZone(zone).toLocalDate()}. Categories: " +
                     SpendCategory.entries.joinToString { "${it.name} (${it.label})" } + ". " +
@@ -65,10 +67,10 @@ class AiInsights(
                 prompt = question,
                 schema = QueryEngine.schema,
             )
-            AskResult(QueryEngine.answer(QueryEngine.fromJson(JSONObject(json)), all, now, zone))
+            AskResult(QueryEngine.answer(QueryEngine.fromJson(JSONObject(AiJson.extract(json))), all, now, zone))
         } catch (e: Exception) {
             val note = (e as? AiException)?.message ?: "Gemini’s reply couldn’t be read"
-            AskResult(QueryEngine.answer(QueryEngine.parseLocally(question), all, now, zone), note = "$note. Answered with on-phone rules.")
+            AskResult(QueryEngine.answer(QueryEngine.parseLocally(question), all, now, zone), note = "${note.trimEnd('.')}. Answered with on-phone rules.")
         }
     }
 
@@ -84,12 +86,14 @@ class AiInsights(
             },"required":["description","category"]}}""",
         )
         val reply = JSONArray(
-            gemini.generate(
+            AiJson.extract(
+                engine().generate(
                 system = "Assign each Indian payment description (a shop, person or note) to one spending category. " +
                     "Categories: " + SpendCategory.entries.joinToString { "${it.name} (${it.label})" } +
                     ". A person's name with no other hint is OTHER. Return one item per description, copied exactly.",
-                prompt = JSONArray(descriptions).toString(),
-                schema = schema,
+                    prompt = JSONArray(descriptions).toString(),
+                    schema = schema,
+                ),
             ),
         )
         val byDescription = (0 until reply.length()).mapNotNull { i ->
