@@ -72,6 +72,9 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     // Gemini Nano through Android AICore (on-device AI engine for Insights).
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
+    // GenAI's compiled code calls Job.cancel$default, which only exists in coroutines 1.11+;
+    // without this pin 1.9.0 resolves and Nano calls crash with NoSuchMethodError.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     testImplementation("junit:junit:4.13.2")
     // Real org.json for JVM unit tests (Android's copy is a stub there).

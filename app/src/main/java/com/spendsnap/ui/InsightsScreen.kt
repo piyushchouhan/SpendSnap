@@ -7,6 +7,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DeliveryDining
+import androidx.compose.material.icons.rounded.EventRepeat
+import androidx.compose.material.icons.rounded.HourglassTop
+import androidx.compose.material.icons.rounded.LocalCafe
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Category
@@ -83,6 +92,11 @@ import com.spendsnap.ai.AiEngineKind
 import com.spendsnap.ai.AskResult
 import com.spendsnap.ai.CategoryShare
 import com.spendsnap.ai.Insights
+import com.spendsnap.ai.SavingKind
+import com.spendsnap.ai.SavingOpportunity
+import com.spendsnap.ai.SavingsAnalyzer
+import com.spendsnap.ai.SavingsPlan
+import com.spendsnap.ai.SavingsReport
 import com.spendsnap.ai.SpendCategory
 import com.spendsnap.ai.Summary
 import com.spendsnap.container
@@ -118,6 +132,10 @@ class InsightsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var dismissed by mutableStateOf(container.settings.dismissedTips)
         private set
+    var plan by mutableStateOf<SavingsPlan?>(null)
+        private set
+    var planLoading by mutableStateOf(false)
+        private set
 
     private suspend fun payments(): List<Transaction> = all.filterNotNull().first()
 
@@ -127,6 +145,15 @@ class InsightsViewModel(private val container: AppContainer) : ViewModel() {
             summaryLoading = true
             summary = container.ai.summary(payments(), force)
             summaryLoading = false
+        }
+    }
+
+    fun loadPlan(report: SavingsReport, force: Boolean) {
+        if (planLoading) return
+        viewModelScope.launch {
+            planLoading = true
+            plan = container.ai.savingsPlan(report, force)
+            planLoading = false
         }
     }
 
@@ -211,6 +238,12 @@ fun InsightsScreen(onReview: () -> Unit, onHistory: () -> Unit, modifier: Modifi
         } else {
             SummaryCard(vm.summary, vm.summaryLoading, onDevice, onRefresh = { vm.loadSummary(force = true) })
             AskSection(vm.asked, vm.answer, onAsk = vm::ask, onClear = vm::clearAnswer, onHistory = onHistory, total = all?.size ?: 0)
+        }
+
+        if (all != null) {
+            val report = remember(all) { SavingsAnalyzer.analyze(all, Instant.now(), ZoneId.systemDefault()) }
+            LaunchedEffect(aiOn, engine, report) { if (aiOn && report.opportunities.isNotEmpty()) vm.loadPlan(report, force = false) }
+            SavingsSection(report, aiOn, vm.plan, vm.planLoading, onRefresh = { vm.loadPlan(report, force = true) })
         }
 
         if (all != null) {
@@ -405,6 +438,119 @@ private fun AskSection(asked: String?, answer: AskResult?, onAsk: (String) -> Un
                         Icon(Icons.Rounded.Storage, null, Modifier.size(16.dp), tint = scheme.onSurfaceVariant)
                         Text(a.basis, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp).weight(1f))
                         TextButton(onClick = onHistory) { Text("Open History") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "Where you can save": on-phone findings, plus an AI-worded plan when AI Insights is on. */
+@Composable
+private fun SavingsSection(report: SavingsReport, aiOn: Boolean, plan: SavingsPlan?, planLoading: Boolean, onRefresh: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    SectionTitle("Where you can save")
+    if (!report.enoughData) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp).fillMaxWidth()
+                .background(LocalExtraColors.current.warningContainer, RoundedCornerShape(16.dp)).padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.Rounded.HourglassTop, null, tint = LocalExtraColors.current.onWarningContainer)
+            Text(
+                "Keep tracking: ${SavingsReport.MIN_DAYS - report.daysTracked} more day${if (SavingsReport.MIN_DAYS - report.daysTracked == 1) "" else "s"} " +
+                    "of payments will make this analysis reliable.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = LocalExtraColors.current.onWarningContainer,
+            )
+        }
+    }
+    if (report.opportunities.isEmpty()) {
+        Text(
+            if (report.enoughData) "No obvious unnecessary spending in the last 30 days." else "Nothing stands out yet.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        return
+    }
+
+    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().background(scheme.primaryContainer, RoundedCornerShape(28.dp)).padding(20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Savings, null, tint = scheme.onPrimaryContainer)
+            Text("You could save up to", style = MaterialTheme.typography.titleSmall, color = scheme.onPrimaryContainer, modifier = Modifier.padding(start = 8.dp).weight(1f))
+            if (aiOn) {
+                IconButton(onClick = onRefresh, enabled = !planLoading, colors = IconButtonDefaults.iconButtonColors(contentColor = scheme.onPrimaryContainer)) {
+                    Icon(Icons.Rounded.Refresh, "Rewrite plan")
+                }
+            }
+        }
+        Text("${Inr.format(report.totalSavingPaise)} a month", fontSize = 32.sp, lineHeight = 40.sp, color = scheme.onPrimaryContainer, modifier = Modifier.padding(top = 4.dp))
+        Text(
+            "If you make the changes below. Based on your last 30–90 days.",
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onPrimaryContainer,
+        )
+        val lines = if (aiOn) plan?.lines else SavingsAnalyzer.localPlan(report)
+        if (aiOn && (planLoading || plan == null)) {
+            Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = scheme.onPrimaryContainer)
+                Text("Writing your plan…", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
+            }
+        } else if (!lines.isNullOrEmpty()) {
+            Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                lines.forEach { line ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(Icons.Rounded.CheckCircle, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(18.dp).padding(top = 2.dp))
+                        Text(line, style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
+                    }
+                }
+            }
+            plan?.note?.takeIf { aiOn }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = scheme.onPrimaryContainer, modifier = Modifier.padding(top = 8.dp)) }
+        }
+    }
+
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp).fillMaxWidth().border(1.dp, scheme.outlineVariant, RoundedCornerShape(16.dp))) {
+        report.opportunities.forEachIndexed { i, o ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(scheme.outlineVariant))
+            OpportunityRow(o)
+        }
+    }
+}
+
+@Composable
+private fun OpportunityRow(o: SavingOpportunity) {
+    val scheme = MaterialTheme.colorScheme
+    var open by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().clickable { open = !open }.padding(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Icon(
+                when (o.kind) {
+                    SavingKind.SUBSCRIPTION -> Icons.Rounded.EventRepeat
+                    SavingKind.FOOD_DELIVERY -> Icons.Rounded.DeliveryDining
+                    SavingKind.FREQUENT_SMALL -> Icons.Rounded.LocalCafe
+                    SavingKind.LATE_NIGHT -> Icons.Rounded.Bedtime
+                    SavingKind.CATEGORY_UP -> Icons.Rounded.TrendingUp
+                },
+                null,
+                tint = scheme.onSurfaceVariant,
+            )
+            Column(Modifier.weight(1f)) {
+                Text(o.title, style = MaterialTheme.typography.titleSmall)
+                Text(o.detail, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+                Text("→ ${o.change}", style = MaterialTheme.typography.bodySmall, color = scheme.primary, modifier = Modifier.padding(top = 4.dp))
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(Inr.format(o.savingPaise), style = MaterialTheme.typography.titleSmall, color = scheme.primary)
+                Text("/month", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            }
+        }
+        if (open) {
+            Column(Modifier.padding(start = 40.dp, top = 8.dp)) {
+                o.evidence.forEach { t ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Text("${t.description ?: "No description"} · ${dayAndTime(t.timestamp)}", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        Text(formatAmount(t.amountPaise), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

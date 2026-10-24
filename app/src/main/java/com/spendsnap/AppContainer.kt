@@ -92,6 +92,8 @@ class AppSettings(context: Context) {
     /** Last Gemini summary and the facts it was written from, so reopening the tab doesn't call the API. */
     var summaryText by text("ai_summary_text")
     var summaryKey by text("ai_summary_key")
+    var planText by text("ai_plan_text")
+    var planKey by text("ai_plan_key")
 
     var dismissedTips: Set<String>
         get() = prefs.getStringSet("ai_dismissed_tips", emptySet()).orEmpty()

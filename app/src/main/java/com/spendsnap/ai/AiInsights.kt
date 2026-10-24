@@ -12,6 +12,8 @@ data class Summary(val text: String, val fromAi: Boolean, val note: String? = nu
 
 data class AskResult(val answer: Answer, val note: String? = null)
 
+data class SavingsPlan(val lines: List<String>, val fromAi: Boolean, val note: String? = null)
+
 /**
  * The three things the AI engine is used for. With the cloud engine each sends the minimum needed:
  * - summary: pre-formatted weekly totals per category (no individual payments)
@@ -51,6 +53,40 @@ class AiInsights(
             }
         } catch (e: AiException) {
             Summary(local, fromAi = false, note = e.message)
+        }
+    }
+
+    /**
+     * Turns the on-phone [SavingsReport] into three practical suggestions. The AI sees only the
+     * findings (pre-formatted amounts) and may not introduce any other ₹ figure.
+     */
+    suspend fun savingsPlan(report: SavingsReport, force: Boolean): SavingsPlan {
+        val local = SavingsAnalyzer.localPlan(report)
+        if (report.opportunities.isEmpty()) return SavingsPlan(local, fromAi = false)
+        val ai = engine()
+        val facts = SavingsAnalyzer.facts(report)
+        val key = "${ai.onDevice}|$facts"
+        if (!force && settings.planKey == key) settings.planText?.let { return SavingsPlan(it.lines(), fromAi = true) }
+        return try {
+            val text = ai.generate(
+                system = "You help an Indian user cut unnecessary spending. From the findings, write exactly 3 short, practical, " +
+                    "specific suggestions, one per line, each starting with \"- \" and a verb. Mention the payee or habit by name. " +
+                    "Copy rupee amounts exactly as given; never calculate or invent numbers. No other text.",
+                prompt = facts.toString(),
+            )
+            val lines = text.lines().map { it.trim().removePrefix("-").removePrefix("*").replace(Regex("""^\d+[.)]\s*"""), "").trim() }
+                .filter { it.isNotEmpty() }.take(3)
+            val allowed = SavingsAnalyzer.allowedAmounts(facts)
+            val invented = lines.any { line -> Regex("""₹\s?[\d,]+(?:\.\d{1,2})?""").findAll(line).any { it.value.replace(" ", "") !in allowed } }
+            if (lines.isEmpty() || invented) {
+                SavingsPlan(local, fromAi = false, note = "The AI’s wording had a figure that didn’t match your data, so the on-phone plan is shown.")
+            } else {
+                settings.planKey = key
+                settings.planText = lines.joinToString("\n")
+                SavingsPlan(lines, fromAi = true)
+            }
+        } catch (e: AiException) {
+            SavingsPlan(local, fromAi = false, note = e.message)
         }
     }
 
