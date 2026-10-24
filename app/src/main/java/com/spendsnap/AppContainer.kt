@@ -3,6 +3,8 @@ package com.spendsnap
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import com.spendsnap.ai.AiInsights
+import com.spendsnap.ai.GeminiClient
 import com.spendsnap.data.AppDatabase
 import com.spendsnap.data.TransactionRepository
 import com.spendsnap.domain.PaymentApp
@@ -19,6 +21,7 @@ class AppContainer(context: Context) {
     val repository = TransactionRepository(AppDatabase.create(context))
     val settings = AppSettings(context)
     val ocr by lazy { OcrProcessor(context) }
+    val ai by lazy { AiInsights(repository, settings, GeminiClient(BuildConfig.GEMINI_API_KEY, BuildConfig.GEMINI_MODEL)) }
 
     /** Screenshot shared to the app (or picked in-app), waiting to be OCR'd. Never copied or stored. */
     val pendingScreenshot = MutableStateFlow<Uri?>(null)
@@ -54,6 +57,33 @@ class AppSettings(context: Context) {
         PaymentApp.PHONEPE -> phonePeEnabled
         PaymentApp.CASH, PaymentApp.OTHER -> false
     }
+
+    /**
+     * AI Insights sends limited data to Google's Gemini API, so it is off until the user turns it on.
+     * Observable so the Insights tab and Settings stay in sync.
+     */
+    val aiEnabled = MutableStateFlow(prefs.getBoolean("ai_enabled", false))
+
+    fun setAiEnabled(on: Boolean) {
+        aiEnabled.value = on
+        prefs.edit().putBoolean("ai_enabled", on).apply()
+    }
+
+    var autoCategorize by flag("ai_categorize", true)
+
+    private fun text(key: String) = object : kotlin.properties.ReadWriteProperty<Any?, String?> {
+        override fun getValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>) = prefs.getString(key, null)
+        override fun setValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>, value: String?) =
+            prefs.edit().putString(key, value).apply()
+    }
+
+    /** Last Gemini summary and the facts it was written from, so reopening the tab doesn't call the API. */
+    var summaryText by text("ai_summary_text")
+    var summaryKey by text("ai_summary_key")
+
+    var dismissedTips: Set<String>
+        get() = prefs.getStringSet("ai_dismissed_tips", emptySet()).orEmpty()
+        set(value) = prefs.edit().putStringSet("ai_dismissed_tips", value).apply()
 
     val theme = MutableStateFlow(ThemeMode.entries.firstOrNull { it.name == prefs.getString("theme", null) } ?: ThemeMode.SYSTEM)
 

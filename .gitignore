@@ -11,3 +11,4 @@ local.properties
 .idea
 captures
 .claude/settings.local.json
+api.txt

@@ -1,7 +1,20 @@
 # SpendSnap
 
 Personal, offline expense tracker for a Pixel 9 on Android 17. It captures the amount and
-description of Google Pay / PhonePe payments. No LLM, no cloud, no internet permission.
+description of Google Pay / PhonePe payments. Detection and OCR run on the phone; there is no backend.
+
+Optional **AI Insights** (off by default) uses Google's Gemini API: weekly summary wording, questions
+about your spending, and category suggestions. Amounts are always computed on the phone; Gemini gets only
+the question, weekly per-category totals, and payee names the on-phone rules can't categorise.
+Put the key in a git-ignored `api.txt` at the project root before building:
+
+```
+api-key: <your Gemini API key>
+model: gemini-3.8-flash
+```
+
+The key is compiled into the APK (no backend), so anyone with the APK can extract it. Restrict it in
+Google Cloud Console to this app (package `com.spendsnap` + signing SHA-1) and to the Gemini API.
 
 ## How payments get in
 

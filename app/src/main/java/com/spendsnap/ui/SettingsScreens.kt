@@ -10,7 +10,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Download
@@ -84,6 +86,9 @@ fun SettingsScreen(onDetection: () -> Unit, onPrivacy: () -> Unit, onMessage: (S
     var reviewFirst by remember { mutableStateOf(settings.reviewBeforeSaving) }
     var alerts by remember { mutableStateOf(settings.paymentAlerts) }
     var diagnostics by remember { mutableStateOf(settings.diagnosticsEnabled) }
+    val aiOn by settings.aiEnabled.collectAsStateWithLifecycle()
+    var categorize by remember { mutableStateOf(settings.autoCategorize) }
+    var showAiConsent by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
         accessibilityOn = isAccessibilityEnabled(context)
         onPauseOrDispose { }
@@ -128,6 +133,18 @@ fun SettingsScreen(onDetection: () -> Unit, onPrivacy: () -> Unit, onMessage: (S
             alerts = it; settings.paymentAlerts = it
         }
 
+        GroupLabel("AI Insights")
+        SwitchRow(
+            Icons.Rounded.AutoAwesome, "AI Insights",
+            if (aiOn) "Summaries, answers and category suggestions via Google’s Gemini API" else "Off. Nothing is sent to any server",
+            aiOn,
+        ) { on -> if (on) showAiConsent = true else settings.setAiEnabled(false) }
+        SwitchRow(
+            Icons.Rounded.Category, "Auto-categorize payments",
+            if (categorize) "Rules on this phone first; Gemini suggests the rest" else "Off. Only on-phone rules and your own categories",
+            categorize,
+        ) { categorize = it; settings.autoCategorize = it }
+
         GroupLabel("Appearance")
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             ThemeMode.entries.forEachIndexed { i, mode ->
@@ -160,6 +177,10 @@ fun SettingsScreen(onDetection: () -> Unit, onPrivacy: () -> Unit, onMessage: (S
             "Writes Google Pay/PhonePe screen text to logcat (adb logcat -s SpendSnapDump) for tuning rules. Turn off when done.",
             diagnostics,
         ) { diagnostics = it; settings.diagnosticsEnabled = it }
+    }
+
+    if (showAiConsent) {
+        AiConsentDialog(onDismiss = { showAiConsent = false }, onConfirm = { showAiConsent = false; settings.setAiEnabled(true) })
     }
 
     if (confirmDeleteAll) {
@@ -236,7 +257,7 @@ fun PrivacyScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         listOf(
-            "No internet" to "SpendSnap has no internet permission. Nothing is uploaded, synced or sent to any server, and there is no analytics or AI service.",
+            "Internet" to "Used only by AI Insights, which is off until you turn it on. Then your questions, this week’s category totals and payee names the app can’t categorise go to Google’s Gemini API. Screenshots, UPI references and account numbers are never sent. No analytics, tracking or sync.",
             "What is stored" to "Only per payment: description, amount, app, time, verification status, capture method, an optional UPI reference and your category. Stored in a local database on this phone and excluded from cloud backup.",
             "Screenshots" to "Shared screenshots are read once for on-device OCR (ML Kit, bundled model) and never copied or saved by SpendSnap.",
             "Never collected" to "UPI PIN, OTP, passwords, login data, account balances, or text from any app other than Google Pay and PhonePe.",

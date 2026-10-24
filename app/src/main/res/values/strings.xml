@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">SpendSnap</string>
     <string name="accessibility_label">SpendSnap payment detection</string>
-    <string name="accessibility_description">Reads on-screen text only inside Google Pay and PhonePe to detect payment amount, note and success/failure status. PIN, OTP and password screens are ignored. Nothing leaves your phone.</string>
+    <string name="accessibility_description">Reads on-screen text only inside Google Pay and PhonePe to detect payment amount, note and success/failure status. PIN, OTP and password screens are ignored. Screen text never leaves your phone.</string>
     <string name="notification_listener_label">SpendSnap payment notifications</string>
 </resources>

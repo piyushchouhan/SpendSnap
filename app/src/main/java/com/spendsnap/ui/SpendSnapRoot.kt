@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.ReceiptLong
@@ -62,6 +64,7 @@ private const val HISTORY = "history?unverified={unverified}"
 private val TABS = listOf(
     Tab("home", "Home", Icons.Rounded.Home, Icons.Outlined.Home),
     Tab(HISTORY, "History", Icons.Rounded.ReceiptLong, Icons.Outlined.ReceiptLong, target = "history"),
+    Tab("insights", "Insights", Icons.Rounded.AutoAwesome, Icons.Outlined.AutoAwesome),
     Tab("detection", "Detection", Icons.Rounded.Radar, Icons.Rounded.Radar),
     Tab("settings", "Settings", Icons.Rounded.Settings, Icons.Outlined.Settings),
 )
@@ -73,7 +76,7 @@ private val TITLES = mapOf(
 )
 
 /** Screens that draw their own header (design: Home and the full-screen review). */
-private val OWN_HEADER = setOf("home", HISTORY, "new/manual", "new/screenshot")
+private val OWN_HEADER = setOf("home", HISTORY, "insights", "new/manual", "new/screenshot")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,6 +184,18 @@ fun SpendSnapRoot() {
                 arguments = listOf(navArgument("unverified") { type = NavType.BoolType; defaultValue = false }),
             ) { entry ->
                 HistoryScreen(onOpen = open, unverifiedOnly = entry.arguments!!.getBoolean("unverified"), modifier = m)
+            }
+            composable("insights") {
+                InsightsScreen(
+                    onReview = {
+                        nav.navigate("history?unverified=true") {
+                            popUpTo(nav.graph.findStartDestination().id)
+                            launchSingleTop = true
+                        }
+                    },
+                    onHistory = { switchTab("history") },
+                    modifier = m,
+                )
             }
             composable("detection") { DetectionScreen(m) }
             composable("settings") {

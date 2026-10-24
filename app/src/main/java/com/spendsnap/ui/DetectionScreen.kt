@@ -293,7 +293,7 @@ private fun DisclosureDialog(onDismiss: () -> Unit, onContinue: () -> Unit) {
                 listOf(
                     Icons.Rounded.Visibility to "Reads text only in Google Pay and PhonePe",
                     Icons.Rounded.CurrencyRupee to "Keeps only the payee description and amount",
-                    Icons.Rounded.CloudOff to "Nothing is uploaded. There’s no internet permission",
+                    Icons.Rounded.CloudOff to "Detection runs on this phone. Screen text is never uploaded",
                     Icons.Rounded.NoPhotography to "Doesn’t record your screen or take screenshots",
                 ).forEach { (icon, text) ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

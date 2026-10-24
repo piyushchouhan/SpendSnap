@@ -4,6 +4,11 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Gemini credentials come from api.txt (git-ignored, never committed): lines "api-key: …" and "model: …".
+val aiConfig: Map<String, String> = rootProject.file("api.txt").takeIf { it.exists() }?.readLines().orEmpty()
+    .mapNotNull { line -> line.split(":", limit = 2).takeIf { it.size == 2 }?.let { it[0].trim().lowercase() to it[1].trim() } }
+    .toMap()
+
 android {
     namespace = "com.spendsnap"
     compileSdk = 37
@@ -17,6 +22,9 @@ android {
         versionName = "0.1.0"
         // Pixel 9 is arm64; skipping other ABIs keeps the bundled OCR model small.
         ndk { abiFilters += "arm64-v8a" }
+
+        buildConfigField("String", "GEMINI_API_KEY", "\"${aiConfig["api-key"].orEmpty()}\"")
+        buildConfigField("String", "GEMINI_MODEL", "\"${aiConfig["model"] ?: "gemini-3.8-flash"}\"")
     }
 
     buildTypes {
@@ -37,6 +45,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -63,4 +72,6 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for JVM unit tests (Android's copy is a stub there).
+    testImplementation("org.json:json:20240303")
 }
