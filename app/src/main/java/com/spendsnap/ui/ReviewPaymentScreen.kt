@@ -81,6 +81,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.spendsnap.AppContainer
 import com.spendsnap.container
+import com.spendsnap.domain.Direction
 import com.spendsnap.domain.ExtractionMethod
 import com.spendsnap.domain.Inr
 import com.spendsnap.domain.PaymentApp
@@ -91,7 +92,7 @@ import com.spendsnap.parsing.LineTagger
 import com.spendsnap.parsing.PaymentExtractor
 import kotlinx.coroutines.launch
 
-enum class CaptureMode { SCREENSHOT, MANUAL }
+enum class CaptureMode { SCREENSHOT, MANUAL, INCOME }
 
 sealed interface ReviewPhase {
     /** 0 = recognizing text, 1 = matching rules, 2 = checking duplicates. */
@@ -102,6 +103,7 @@ sealed interface ReviewPhase {
 
 data class ReviewForm(
     val manual: Boolean,
+    val direction: Direction = Direction.EXPENSE,
     val amountText: String = "",
     val description: String = "",
     val app: PaymentApp = PaymentApp.OTHER,
@@ -121,7 +123,9 @@ data class ReviewForm(
 class ReviewPaymentViewModel(private val container: AppContainer, mode: CaptureMode) : ViewModel() {
     var phase by mutableStateOf<ReviewPhase>(ReviewPhase.Ready)
         private set
-    var form by mutableStateOf(ReviewForm(manual = mode == CaptureMode.MANUAL))
+    var form by mutableStateOf(
+        ReviewForm(manual = mode != CaptureMode.SCREENSHOT, direction = if (mode == CaptureMode.INCOME) Direction.INCOME else Direction.EXPENSE),
+    )
         private set
     var saved by mutableStateOf(false)
         private set
@@ -206,7 +210,7 @@ class ReviewPaymentViewModel(private val container: AppContainer, mode: CaptureM
         val (amount, description) = validated() ?: return
         viewModelScope.launch {
             val duplicate = form.duplicate
-                ?: container.repository.findLikelyDuplicate(amount, description, form.reference, form.at)
+                ?: container.repository.findLikelyDuplicate(amount, description, form.reference, form.at, form.direction)
             if (duplicate != null) form = form.copy(duplicate = duplicate) else persist(amount, description)
         }
     }
@@ -238,6 +242,7 @@ class ReviewPaymentViewModel(private val container: AppContainer, mode: CaptureM
                 verificationStatus = VerificationStatus.USER_CONFIRMED,
                 extractionMethod = if (form.manual) ExtractionMethod.MANUAL else ExtractionMethod.OCR,
                 transactionReference = form.reference,
+                direction = form.direction,
             ),
         )
         saved = true
@@ -254,6 +259,7 @@ fun ReviewPaymentScreen(mode: CaptureMode, onDone: () -> Unit, modifier: Modifie
     val phase = vm.phase
     val title = when {
         phase is ReviewPhase.Reading -> "Reading payment"
+        vm.form.direction == Direction.INCOME -> "Add income"
         vm.form.manual -> "New payment"
         else -> "Review payment"
     }
@@ -375,6 +381,7 @@ private fun ReadyContent(form: ReviewForm, update: (ReviewForm.() -> ReviewForm)
             Column {
                 Text(
                     when {
+                        form.direction == Direction.INCOME -> if (form.app == PaymentApp.CASH) "Received in cash" else "Money received"
                         form.manual && form.app == PaymentApp.CASH -> "Paid in cash"
                         form.manual -> "Entered manually"
                         form.app == PaymentApp.OTHER -> "Read from screenshot"
@@ -387,6 +394,19 @@ private fun ReadyContent(form: ReviewForm, update: (ReviewForm.() -> ReviewForm)
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                 )
+            }
+        }
+
+        if (form.manual) {
+            val directions = Direction.entries
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                directions.forEachIndexed { i, d ->
+                    SegmentedButton(
+                        selected = form.direction == d,
+                        onClick = { update { copy(direction = d, duplicate = null) } },
+                        shape = SegmentedButtonDefaults.itemShape(i, directions.size),
+                    ) { Text(if (d == Direction.INCOME) "Income (money in)" else "Expense (money out)") }
+                }
             }
         }
 
@@ -428,10 +448,11 @@ private fun ReadyContent(form: ReviewForm, update: (ReviewForm.() -> ReviewForm)
             value = form.description,
             onChange = { v -> update { copy(description = v, descriptionError = false, duplicate = null) } },
             label = "Description",
-            placeholder = "Who you paid",
+            placeholder = if (form.direction == Direction.INCOME) "Who paid you" else "Who you paid",
             error = form.descriptionError,
             help = when {
                 form.descriptionError -> "Add a description"
+                form.manual && form.direction == Direction.INCOME -> "Who paid you or what it was for, e.g. Salary"
                 form.manual -> "Who you paid or what it was for"
                 form.detectedDescription == null -> "Not found on the screenshot"
                 descriptionEdited -> "Edited by you"
@@ -441,7 +462,7 @@ private fun ReadyContent(form: ReviewForm, update: (ReviewForm.() -> ReviewForm)
         )
 
         Column {
-            Text("Paid with", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+            Text(if (form.direction == Direction.INCOME) "Received in" else "Paid with", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
             val apps = listOf(PaymentApp.GOOGLE_PAY, PaymentApp.PHONEPE, PaymentApp.CASH)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 apps.forEachIndexed { i, app ->
@@ -479,7 +500,8 @@ private fun DuplicateCard(existing: Transaction) {
             Text("Possible duplicate", style = MaterialTheme.typography.titleMedium, color = scheme.onErrorContainer)
         }
         Text(
-            "You already saved ${formatAmount(existing.amountPaise)} to ${existing.description ?: "this payee"} via " +
+            "You already saved ${formatAmount(existing.amountPaise)} ${if (existing.direction == Direction.INCOME) "from" else "to"} " +
+                "${existing.description ?: "this payee"} via " +
                 "${existing.paymentApp.label} · ${dayAndTime(existing.timestamp)}. Saving again would count it twice.",
             style = MaterialTheme.typography.bodyMedium,
             color = scheme.onErrorContainer,

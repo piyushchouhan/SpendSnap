@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import com.spendsnap.MainActivity
 import com.spendsnap.R
 import com.spendsnap.container
+import com.spendsnap.domain.Direction
 import com.spendsnap.domain.Transaction
 import com.spendsnap.domain.VerificationStatus
 import com.spendsnap.domain.countsTowardTotals
@@ -33,6 +34,7 @@ object CaptureNotifier {
         ensureChannel(context)
         val app = t.paymentApp.label
         val title = when {
+            t.direction == Direction.INCOME -> "Money received in $app"
             t.verificationStatus == VerificationStatus.PENDING -> "Payment pending in $app"
             t.verificationStatus == VerificationStatus.FAILED -> "Payment failed in $app"
             t.countsTowardTotals -> "Payment recorded from $app"
@@ -40,6 +42,7 @@ object CaptureNotifier {
         }
         val what = formatAmount(t.amountPaise) + (t.description?.let { " · $it" } ?: "")
         val next = when {
+            t.direction == Direction.INCOME -> "Added to this month’s income. Tap to check."
             t.verificationStatus == VerificationStatus.PENDING -> "Waiting for the success screen."
             t.verificationStatus == VerificationStatus.FAILED -> "Not counted."
             t.countsTowardTotals -> "Added to your totals. Tap to check."

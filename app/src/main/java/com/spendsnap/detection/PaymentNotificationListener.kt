@@ -5,10 +5,15 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.spendsnap.container
+import com.spendsnap.domain.Direction
 import com.spendsnap.domain.ExtractionMethod
 import com.spendsnap.domain.PaymentApp
 import com.spendsnap.domain.ReviewIssue
 import com.spendsnap.domain.ScreenStatus
+import com.spendsnap.domain.Transaction
+import com.spendsnap.domain.VerificationStatus
+import com.spendsnap.parsing.Incoming
+import com.spendsnap.parsing.IncomingParser
 import com.spendsnap.parsing.PaymentExtractor
 import com.spendsnap.parsing.toTransaction
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +45,10 @@ class PaymentNotificationListener : NotificationListenerService() {
 
         val extraction = PaymentExtractor.extract(lines) ?: return
         DiagnosticLog.dump(this, "notification/${app.name}/${extraction.status}", lines)
+        if (extraction.status == ScreenStatus.NOT_AN_EXPENSE) {
+            IncomingParser.parse(lines)?.let { recordIncome(app, it, sbn) }
+            return
+        }
         if (extraction.status != ScreenStatus.SUCCESS && extraction.status != ScreenStatus.FAILED) return
         if (extraction.amountPaise == null) return
 
@@ -60,6 +69,28 @@ class PaymentNotificationListener : NotificationListenerService() {
                 container.repository.get(id)?.let { CaptureNotifier.show(this@PaymentNotificationListener, it) }
             } catch (e: Exception) {
                 Log.e("SpendSnap", "Could not store notification payment", e)
+            }
+        }
+    }
+
+    private fun recordIncome(app: PaymentApp, incoming: Incoming, sbn: StatusBarNotification) {
+        if (!handled.add("${sbn.key}|in|${incoming.amountPaise}")) return
+        val transaction = Transaction(
+            description = incoming.from,
+            amountPaise = incoming.amountPaise,
+            paymentApp = app,
+            timestamp = sbn.postTime,
+            verificationStatus = VerificationStatus.SUCCESS_REPORTED,
+            extractionMethod = ExtractionMethod.NOTIFICATION,
+            reviewIssues = if (incoming.from == null) setOf(ReviewIssue.DESCRIPTION_MISSING) else emptySet(),
+            direction = Direction.INCOME,
+        )
+        scope.launch {
+            try {
+                val id = container.repository.ingest(transaction)
+                container.repository.get(id)?.let { CaptureNotifier.show(this@PaymentNotificationListener, it) }
+            } catch (e: Exception) {
+                Log.e("SpendSnap", "Could not store incoming payment", e)
             }
         }
     }

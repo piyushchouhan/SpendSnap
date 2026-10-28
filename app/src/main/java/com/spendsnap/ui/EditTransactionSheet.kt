@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.spendsnap.container
+import com.spendsnap.domain.Direction
 import com.spendsnap.domain.Inr
 import com.spendsnap.domain.PaymentApp
 import com.spendsnap.domain.ReviewIssue
@@ -74,6 +75,7 @@ fun EditTransactionSheet(id: Long, onDismiss: () -> Unit, onDeleted: (Transactio
     var amountText by remember(t) { mutableStateOf(t.amountPaise?.let(Inr::toEditable).orEmpty()) }
     var category by remember(t) { mutableStateOf(t.category.orEmpty()) }
     var app by remember(t) { mutableStateOf(t.paymentApp) }
+    var direction by remember(t) { mutableStateOf(t.direction) }
     var verified by remember(t) { mutableStateOf(t.isVerified) }
     var amountError by remember { mutableStateOf(false) }
     var descriptionError by remember { mutableStateOf(false) }
@@ -98,6 +100,7 @@ fun EditTransactionSheet(id: Long, onDismiss: () -> Unit, onDeleted: (Transactio
                     amountPaise = amount,
                     category = category.trim().ifEmpty { null },
                     paymentApp = app,
+                    direction = direction,
                     verificationStatus = status,
                     reviewIssues = issues,
                 ),
@@ -180,6 +183,15 @@ fun EditTransactionSheet(id: Long, onDismiss: () -> Unit, onDeleted: (Transactio
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                Direction.entries.forEachIndexed { i, d ->
+                    SegmentedButton(
+                        selected = direction == d,
+                        onClick = { direction = d },
+                        shape = SegmentedButtonDefaults.itemShape(i, Direction.entries.size),
+                    ) { Text(if (d == Direction.INCOME) "Income" else "Expense") }
+                }
+            }
             val apps = listOf(PaymentApp.GOOGLE_PAY, PaymentApp.PHONEPE, PaymentApp.CASH)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 apps.forEachIndexed { i, a ->

@@ -1,5 +1,6 @@
 package com.spendsnap.domain
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -24,17 +25,25 @@ data class Transaction(
     val category: String? = null,
     val reviewIssues: Set<ReviewIssue> = emptySet(),
     val possibleDuplicateOfId: Long? = null,
+    // Default must match MIGRATION_1_2 so Room's schema check passes on upgraded databases.
+    @ColumnInfo(defaultValue = "EXPENSE") val direction: Direction = Direction.EXPENSE,
 )
 
 val Transaction.needsReview: Boolean get() = reviewIssues.isNotEmpty()
 
-/** Suspected duplicates and entries awaiting review stay out of totals until the user decides. */
-val Transaction.countsTowardTotals: Boolean
+/** Confirmed enough to count: suspected duplicates and entries awaiting review wait for the user. */
+private val Transaction.settled: Boolean
     get() = verificationStatus.countsTowardTotals && amountPaise != null && possibleDuplicateOfId == null &&
         ReviewIssue.AWAITING_REVIEW !in reviewIssues
 
+/** Counts toward spending totals. Income never does. */
+val Transaction.countsTowardTotals: Boolean get() = settled && direction == Direction.EXPENSE
+
+/** Counts toward income totals. */
+val Transaction.countsAsIncome: Boolean get() = settled && direction == Direction.INCOME
+
 /** Shown with a "Verified" badge: counted and nothing left to check. */
-val Transaction.isVerified: Boolean get() = countsTowardTotals && !needsReview
+val Transaction.isVerified: Boolean get() = settled && !needsReview
 
 /** Shown as "Unverified": not counted yet or still needs a look. Failed payments are their own case. */
 val Transaction.isUnverified: Boolean get() = !isVerified && verificationStatus != VerificationStatus.FAILED

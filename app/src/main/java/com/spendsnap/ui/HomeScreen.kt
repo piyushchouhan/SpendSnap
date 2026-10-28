@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.Receipt
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SouthWest
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -99,6 +100,7 @@ fun HomeScreen(
     onDetection: () -> Unit,
     onImportScreenshot: () -> Unit,
     onAddManual: () -> Unit,
+    onAddIncome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -118,6 +120,7 @@ fun HomeScreen(
             item { HomeHeader(onSearch = onHistory) }
             item { TotalCard(s.totals) }
             item { PeriodCards(s.totals) }
+            if (s.totals.monthIncome.count > 0) item { IncomeCard(s.totals) }
             if (s.reviewCount > 0) item { ReviewBanner(s.reviewCount, onReview) }
             if (!detectionOn) item { DetectionOffCard(onDetection) }
             item {
@@ -154,6 +157,7 @@ fun HomeScreen(
             AddPaymentSheet(
                 onImport = { showSheet = false; onImportScreenshot() },
                 onManual = { showSheet = false; onAddManual() },
+                onIncome = { showSheet = false; onAddIncome() },
             )
         }
     }
@@ -211,6 +215,42 @@ private fun PeriodCards(totals: DashboardTotals) {
     Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("Today" to totals.today, "This week" to totals.week, "This month" to totals.month).forEach { (label, total) ->
             PeriodCard(label, total, Modifier.weight(1f))
+        }
+    }
+}
+
+/** This month's money in vs out. Shown once any income is recorded. */
+@Composable
+private fun IncomeCard(totals: DashboardTotals) {
+    val scheme = MaterialTheme.colorScheme
+    val net = totals.monthIncome.paise - totals.month.paise
+    Row(
+        Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp).fillMaxWidth()
+            .background(scheme.surfaceContainerLow, RoundedCornerShape(16.dp))
+            .border(1.dp, scheme.outlineVariant, RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        listOf(
+            "Income this month" to Inr.format(totals.monthIncome.paise),
+            "Spent" to Inr.format(totals.month.paise),
+            (if (net >= 0) "Left over" else "Overspent") to Inr.format(kotlin.math.abs(net)),
+        ).forEachIndexed { i, (label, value) ->
+            Column(horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                Text(
+                    value,
+                    fontSize = 18.sp,
+                    lineHeight = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = when {
+                        i == 0 -> scheme.primary
+                        i == 2 && net < 0 -> scheme.error
+                        else -> scheme.onSurface
+                    },
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
         }
     }
 }
@@ -331,7 +371,7 @@ private fun EmptyState(onSetUpDetection: () -> Unit) {
 }
 
 @Composable
-private fun AddPaymentSheet(onImport: () -> Unit, onManual: () -> Unit) {
+private fun AddPaymentSheet(onImport: () -> Unit, onManual: () -> Unit, onIncome: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Column(Modifier.padding(bottom = 24.dp)) {
         Text("Add a payment", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp))
@@ -343,6 +383,7 @@ private fun AddPaymentSheet(onImport: () -> Unit, onManual: () -> Unit) {
         )
         SheetOption(Icons.Rounded.PhotoLibrary, scheme.primaryContainer, scheme.onPrimaryContainer, "Import screenshot", "Pick a confirmation from Photos", onImport)
         SheetOption(Icons.Rounded.EditNote, scheme.surfaceContainerHighest, scheme.onSurfaceVariant, "Enter manually", "Type the description and amount", onManual)
+        SheetOption(Icons.Rounded.SouthWest, scheme.secondaryContainer, scheme.onSecondaryContainer, "Add income", "Salary, money received, refunds", onIncome)
         PrivacyNote("Images are read on this phone and not stored.", Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp))
     }
 }

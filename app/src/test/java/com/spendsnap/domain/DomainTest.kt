@@ -278,3 +278,19 @@ class CashTest {
         assertNull(PaymentApp.CASH.packageName)
     }
 }
+
+class IncomeTest {
+    @Test fun `income never counts as spending and has its own total`() {
+        val salary = tx(1, 5_000_000, description = "Salary").copy(direction = Direction.INCOME)
+        val chai = tx(2, 2000, description = "Chai")
+        assertEquals(PeriodTotal(2000, 1), Totals.sum(listOf(salary, chai), 0, Long.MAX_VALUE))
+        assertEquals(PeriodTotal(5_000_000, 1), Totals.income(listOf(salary, chai), 0, Long.MAX_VALUE))
+        assertTrue(salary.isVerified)
+    }
+
+    @Test fun `income and an equal payment are never duplicates`() {
+        val paid = tx(1, 50000)
+        val received = tx(paise = 50000, at = T0 + MINUTE).copy(direction = Direction.INCOME, extractionMethod = ExtractionMethod.NOTIFICATION)
+        assertEquals(DuplicateDecision.New, DuplicateDetector.decide(received, null, listOf(paid)))
+    }
+}

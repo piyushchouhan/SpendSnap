@@ -1,6 +1,7 @@
 package com.spendsnap.data
 
 import androidx.room.withTransaction
+import com.spendsnap.domain.Direction
 import com.spendsnap.domain.DuplicateDecision
 import com.spendsnap.domain.DuplicateDetector
 import com.spendsnap.domain.ReviewIssue
@@ -44,10 +45,16 @@ class TransactionRepository(private val db: AppDatabase) {
         }
     }
 
-    suspend fun findLikelyDuplicate(amountPaise: Long, description: String, reference: String?, at: Long): Transaction? {
+    suspend fun findLikelyDuplicate(
+        amountPaise: Long,
+        description: String,
+        reference: String?,
+        at: Long,
+        direction: Direction = Direction.EXPENSE,
+    ): Transaction? {
         val window = DuplicateDetector.LIKELY_DUPLICATE_WINDOW_MILLIS
         val candidates = dao.findBetween(at - window, at + window) + listOfNotNull(reference?.let { dao.findByReference(it) })
-        return DuplicateDetector.findLikelyDuplicate(amountPaise, description, reference, at, candidates.distinctBy { it.id })
+        return DuplicateDetector.findLikelyDuplicate(amountPaise, description, reference, at, candidates.distinctBy { it.id }, direction)
     }
 
     /** User edits and manual entries are saved as-is; no duplicate merging. */
