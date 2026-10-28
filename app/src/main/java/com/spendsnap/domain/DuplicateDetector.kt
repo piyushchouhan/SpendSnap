@@ -28,6 +28,7 @@ object DuplicateDetector {
             it.id != candidate.id &&
                 it.extractionMethod != ExtractionMethod.MANUAL &&
                 it.paymentApp == candidate.paymentApp &&
+                it.direction == candidate.direction &&
                 it.amountPaise == amount &&
                 abs(it.timestamp - candidate.timestamp) <= WINDOW_MILLIS &&
                 !referencesDiffer(it, candidate) &&
@@ -66,11 +67,13 @@ object DuplicateDetector {
         reference: String?,
         at: Long,
         existing: List<Transaction>,
+        direction: Direction = Direction.EXPENSE,
     ): Transaction? {
         reference?.let { ref -> existing.firstOrNull { it.transactionReference == ref }?.let { return it } }
         return existing
             .filter {
                 it.amountPaise == amountPaise &&
+                    it.direction == direction &&
                     it.verificationStatus != VerificationStatus.FAILED &&
                     it.description?.trim().equals(description.trim(), ignoreCase = true) &&
                     abs(it.timestamp - at) <= LIKELY_DUPLICATE_WINDOW_MILLIS

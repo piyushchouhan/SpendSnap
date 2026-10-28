@@ -141,3 +141,18 @@ class LineTaggerTest {
         )
     }
 }
+
+class IncomingParserTest {
+    @Test fun `sent you notification`() =
+        assertEquals(Incoming(20000, "Rahul Verma"), IncomingParser.parse(fixture("incoming")))
+
+    @Test fun `received from`() =
+        assertEquals(Incoming(50000, "Asha"), IncomingParser.parse(listOf("₹500 received from Asha via UPI")))
+
+    @Test fun `cashback and requests are not income`() {
+        assertNull(IncomingParser.parse(listOf("You received ₹5 cashback")))
+        assertNull(IncomingParser.parse(listOf("Ravi requested ₹300 from you")))
+    }
+
+    @Test fun `payments are not income`() = assertNull(IncomingParser.parse(fixture("gpay_success")))
+}

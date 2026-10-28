@@ -182,6 +182,7 @@ private fun FilterRow(filter: HistoryFilter, onChange: (HistoryFilter) -> Unit) 
         Chip("Google Pay", filter.googlePay) { onChange(filter.copy(googlePay = !filter.googlePay)) }
         Chip("PhonePe", filter.phonePe) { onChange(filter.copy(phonePe = !filter.phonePe)) }
         Chip("Cash", filter.cash) { onChange(filter.copy(cash = !filter.cash)) }
+        Chip("Income", filter.income) { onChange(filter.copy(income = !filter.income)) }
         Chip("Verified", filter.verified) { onChange(filter.copy(verified = !filter.verified)) }
         Chip("Unverified", filter.unverified) { onChange(filter.copy(unverified = !filter.unverified)) }
     }
@@ -226,7 +227,7 @@ private fun EmptyHistory(hasAny: Boolean, canClear: Boolean, onClear: () -> Unit
 }
 
 private val HistoryFilterSaver = androidx.compose.runtime.saveable.Saver<HistoryFilter, List<Any>>(
-    save = { listOf(it.query, it.googlePay, it.phonePe, it.cash, it.verified, it.unverified, it.sort.name) },
+    save = { listOf(it.query, it.googlePay, it.phonePe, it.cash, it.verified, it.unverified, it.sort.name, it.income) },
     restore = {
         HistoryFilter(
             query = it[0] as String,
@@ -236,6 +237,7 @@ private val HistoryFilterSaver = androidx.compose.runtime.saveable.Saver<History
             verified = it[4] as Boolean,
             unverified = it[5] as Boolean,
             sort = HistorySort.valueOf(it[6] as String),
+            income = it[7] as Boolean,
         )
     },
 )

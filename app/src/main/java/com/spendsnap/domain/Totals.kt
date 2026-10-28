@@ -16,6 +16,8 @@ data class DashboardTotals(
     val month: PeriodTotal,
     /** Category totals for the current month, largest first. Uncategorised spend is left out. */
     val monthByCategory: List<Pair<String, Long>>,
+    /** Money received this month; kept apart from spending. */
+    val monthIncome: PeriodTotal = PeriodTotal(0, 0),
 )
 
 data class PeriodStarts(val day: Long, val week: Long, val month: Long)
@@ -43,6 +45,17 @@ object Totals {
         return PeriodTotal(paise, count)
     }
 
+    fun income(transactions: List<Transaction>, fromMillis: Long, untilMillis: Long): PeriodTotal {
+        var paise = 0L
+        var count = 0
+        for (t in transactions) {
+            if (!t.countsAsIncome || t.timestamp < fromMillis || t.timestamp >= untilMillis) continue
+            paise = Math.addExact(paise, t.amountPaise!!)
+            count++
+        }
+        return PeriodTotal(paise, count)
+    }
+
     fun dashboard(transactions: List<Transaction>, now: Instant, zone: ZoneId): DashboardTotals {
         val starts = periodStarts(now, zone)
         val end = Long.MAX_VALUE
@@ -59,6 +72,7 @@ object Totals {
             week = sum(transactions, starts.week, end),
             month = sum(transactions, starts.month, end),
             monthByCategory = byCategory,
+            monthIncome = income(transactions, starts.month, end),
         )
     }
 }

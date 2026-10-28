@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.SouthWest
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.spendsnap.domain.Direction
 import com.spendsnap.domain.Inr
 import com.spendsnap.domain.PaymentApp
 import com.spendsnap.domain.Transaction
@@ -144,6 +146,8 @@ private fun StatusBadge(transaction: Transaction) {
     val (icon, label, fg, bg) = when {
         transaction.verificationStatus == VerificationStatus.FAILED ->
             Quad(Icons.Rounded.Error, "Failed", scheme.onErrorContainer, scheme.errorContainer)
+        transaction.isVerified && transaction.direction == Direction.INCOME ->
+            Quad(Icons.Rounded.SouthWest, "Received", scheme.primary, Color.Transparent)
         transaction.isVerified -> Quad(Icons.Rounded.Verified, "Verified", scheme.primary, Color.Transparent)
         else -> Quad(Icons.Rounded.Schedule, "Unverified", extra.onWarningContainer, extra.warningContainer)
     }
@@ -180,7 +184,13 @@ fun TransactionRow(transaction: Transaction, showDay: Boolean = true, onClick: (
             )
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(formatAmount(transaction.amountPaise), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            val income = transaction.direction == Direction.INCOME
+            Text(
+                (if (income) "+" else "") + formatAmount(transaction.amountPaise),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = if (income) MaterialTheme.colorScheme.primary else Color.Unspecified,
+            )
             StatusBadge(transaction)
         }
     }

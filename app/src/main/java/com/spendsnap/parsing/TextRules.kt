@@ -82,6 +82,30 @@ object LineTagger {
     }
 }
 
+data class Incoming(val amountPaise: Long, val from: String?)
+
+/** Money received, from a payment-app notification such as "Rahul has sent you ₹200". */
+object IncomingParser {
+    private val INCOMING = Regex("""\b(?:received|credited|sent you|has sent you)\b""", RegexOption.IGNORE_CASE)
+    // Promotions and requests mention money without any arriving.
+    private val NOT_MONEY_IN = Regex(
+        """\b(?:cashback|reward|rewards|scratch|coupon|offer|win|won|request|requested|requesting|collect|due|reminder)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val SENT_YOU = Regex("""^(.+?)\s+(?:has\s+)?sent you\b""", RegexOption.IGNORE_CASE)
+    private val FROM = Regex("""\bfrom\s+(.+?)(?:\s+(?:on|via|in|to|is|was|using)\b|[.!,]|$)""", RegexOption.IGNORE_CASE)
+
+    fun parse(lines: List<String>): Incoming? {
+        val text = lines.joinToString("\n")
+        if (!INCOMING.containsMatchIn(text) || NOT_MONEY_IN.containsMatchIn(text)) return null
+        val amount = (AmountParser.parse(lines) as? AmountResult.Found)?.paise ?: return null
+        val from = (lines.firstNotNullOfOrNull { SENT_YOU.find(it.trim())?.groupValues?.get(1) }
+            ?: lines.firstNotNullOfOrNull { FROM.find(it)?.groupValues?.get(1) })
+            ?.trim()?.takeIf { n -> n.length in 2..60 && n.any { it.isLetter() } && !n.contains('₹') }
+        return Incoming(amount, from)
+    }
+}
+
 object StatusClassifier {
     private fun words(vararg phrases: String) =
         Regex(phrases.joinToString("|", """\b(?:""", """)\b""") { Regex.escape(it) }, RegexOption.IGNORE_CASE)

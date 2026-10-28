@@ -11,6 +11,8 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.spendsnap.domain.ReviewIssue
 import com.spendsnap.domain.Transaction
 import kotlinx.coroutines.flow.Flow
@@ -63,13 +65,20 @@ class Converters {
             .toSet()
 }
 
-@Database(entities = [Transaction::class], version = 1, exportSchema = false)
+/** v2 adds income: every existing row is an expense. */
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE transactions ADD COLUMN direction TEXT NOT NULL DEFAULT 'EXPENSE'")
+    }
+}
+
+@Database(entities = [Transaction::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
 
     companion object {
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "spendsnap.db").build()
+            Room.databaseBuilder(context, AppDatabase::class.java, "spendsnap.db").addMigrations(MIGRATION_1_2).build()
     }
 }

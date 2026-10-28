@@ -17,11 +17,12 @@ data class HistoryFilter(
     val googlePay: Boolean = false,
     val phonePe: Boolean = false,
     val cash: Boolean = false,
+    val income: Boolean = false,
     val verified: Boolean = false,
     val unverified: Boolean = false,
     val sort: HistorySort = HistorySort.NEWEST,
 ) {
-    val isFiltering: Boolean get() = query.isNotBlank() || googlePay || phonePe || cash || verified || unverified
+    val isFiltering: Boolean get() = query.isNotBlank() || googlePay || phonePe || cash || income || verified || unverified
 }
 
 /** [totalPaise] counts only entries that count toward totals, same as the dashboard. */
@@ -49,7 +50,8 @@ object History {
                 (f.googlePay && t.paymentApp == PaymentApp.GOOGLE_PAY) || (f.phonePe && t.paymentApp == PaymentApp.PHONEPE) ||
                 (f.cash && t.paymentApp == PaymentApp.CASH)
             val statusHit = !(f.verified || f.unverified) || (f.verified && t.isVerified) || (f.unverified && t.isUnverified)
-            textHit && appHit && statusHit
+            val directionHit = !f.income || t.direction == Direction.INCOME
+            textHit && appHit && statusHit && directionHit
         }
         return when (f.sort) {
             HistorySort.NEWEST -> list.sortedByDescending { it.timestamp }

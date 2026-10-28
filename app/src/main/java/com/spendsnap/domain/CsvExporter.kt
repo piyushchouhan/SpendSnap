@@ -7,7 +7,7 @@ import java.time.format.DateTimeFormatter
 object CsvExporter {
     private val HEADER = listOf(
         "id", "date_time", "description", "amount_inr", "amount_paise", "currency", "payment_app",
-        "verification_status", "extraction_method", "transaction_reference", "category", "review_issues",
+        "verification_status", "extraction_method", "transaction_reference", "category", "review_issues", "direction",
     )
     private val DATE = DateTimeFormatter.ISO_OFFSET_DATE_TIME
 
@@ -27,6 +27,7 @@ object CsvExporter {
                 t.transactionReference.orEmpty(),
                 t.category.orEmpty(),
                 t.reviewIssues.joinToString(";") { it.name },
+                t.direction.name,
             )
             appendLine(row.joinToString(",") { escape(it) })
         }

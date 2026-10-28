@@ -76,7 +76,7 @@ private val TITLES = mapOf(
 )
 
 /** Screens that draw their own header (design: Home and the full-screen review). */
-private val OWN_HEADER = setOf("home", HISTORY, "insights", "new/manual", "new/screenshot")
+private val OWN_HEADER = setOf("home", HISTORY, "insights", "new/manual", "new/income", "new/screenshot")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,6 +176,7 @@ fun SpendSnapRoot() {
                     onDetection = { switchTab("detection") },
                     onImportScreenshot = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                     onAddManual = { nav.navigate("new/manual") },
+                    onAddIncome = { nav.navigate("new/income") },
                     modifier = m,
                 )
             }
@@ -208,6 +209,7 @@ fun SpendSnapRoot() {
             }
             composable("privacy") { PrivacyScreen(m) }
             composable("new/manual") { ReviewPaymentScreen(CaptureMode.MANUAL, onDone = { nav.popBackStack() }, modifier = m) }
+            composable("new/income") { ReviewPaymentScreen(CaptureMode.INCOME, onDone = { nav.popBackStack() }, modifier = m) }
             composable("new/screenshot") { ReviewPaymentScreen(CaptureMode.SCREENSHOT, onDone = { nav.popBackStack() }, modifier = m) }
         }
     }

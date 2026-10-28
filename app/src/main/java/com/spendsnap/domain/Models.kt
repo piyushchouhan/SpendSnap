@@ -14,6 +14,9 @@ enum class PaymentApp(val packageName: String?, val label: String) {
     }
 }
 
+/** Money out (a payment) or money in (received / salary / refund). */
+enum class Direction(val label: String) { EXPENSE("Expense"), INCOME("Income") }
+
 /** What a single screen (or notification) appears to show. Screen text alone never proves money moved. */
 enum class ScreenStatus { AMOUNT_ENTRY, PENDING, SUCCESS, FAILED, NOT_AN_EXPENSE, UNKNOWN }
 
