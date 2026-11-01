@@ -164,7 +164,8 @@ object BubbleMatcher {
 
     /**
      * Returns fresh "Paid" bubbles that no recorded payment accounts for. Bubbles that match an
-     * unclaimed recorded payment are linked to it instead. [claimed] is updated in place.
+     * unclaimed recorded payment are linked to it instead (reported through [onLinked]).
+     * [claimed] is updated in place.
      */
     fun unrecorded(
         keyed: List<Pair<String, ChatBubble>>,
@@ -172,22 +173,26 @@ object BubbleMatcher {
         claimed: MutableSet<String>,
         nowMinute: Int,
         freshMinutes: Int,
+        onLinked: (RecordedPayment, ChatBubble) -> Unit = { _, _ -> },
     ): List<ChatBubble> = keyed.mapNotNull { (key, b) ->
         if (b.status != ScreenStatus.SUCCESS || nowMinute - b.minuteOfDay !in 0..freshMinutes || key in claimed) {
             return@mapNotNull null
         }
         claimed += key
-        val owner = recorded.firstOrNull {
-            it.bubbleKey == null &&
-                it.draft.amountPaise == b.amountPaise &&
-                b.minuteOfDay - it.minuteOfDay in -1..freshMinutes &&
-                (it.draft.note == null || b.note == null || it.draft.note.equals(b.note, ignoreCase = true))
+        val candidates = recorded.filter {
+            it.bubbleKey == null && it.draft.amountPaise == b.amountPaise && b.minuteOfDay - it.minuteOfDay in -1..freshMinutes
         }
+        // Prefer the same note; otherwise the amount and time decide. The note typed at the Pay tap
+        // can differ from what was sent (keyboard autocorrect turned "Testun" into "Testing").
+        val owner = candidates.firstOrNull { notesMatch(it.draft.note, b.note) } ?: candidates.firstOrNull()
         if (owner != null) {
             owner.bubbleKey = key
+            onLinked(owner, b)
             null
         } else {
             b
         }
     }
+
+    private fun notesMatch(a: String?, b: String?) = a == null || b == null || a.equals(b, ignoreCase = true)
 }

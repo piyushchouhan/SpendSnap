@@ -57,8 +57,9 @@ class PaymentAccessibilityService : AccessibilityService() {
         val app = PaymentApp.fromPackage(event.packageName?.toString())?.takeIf { container.settings.detects(it) } ?: return
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             val label = (event.text.joinToString(" ").ifBlank { null } ?: event.contentDescription?.toString()).orEmpty()
-            DiagnosticLog.line(this, "click: \"$label\"")
+            // Never log other click labels: on the UPI PIN pad they are the PIN digits.
             if (PaymentFormParser.isPayButton(label)) {
+                DiagnosticLog.line(this, "click: \"$label\"")
                 // Read the form now: right after the tap PhonePe opens a fingerprint prompt, which
                 // becomes the active window and would leave only a stale, half-typed draft.
                 val form = readScreen(app)?.let(PaymentFormParser::parse)
@@ -151,7 +152,11 @@ class PaymentAccessibilityService : AccessibilityService() {
         val pending = submitted[app].orEmpty()
 
         for (s in pending.toList()) {
+            // Same note first; then amount and time alone, since autocorrect can change the note after the tap.
             val bubble = bubbles.lastOrNull { (key, b) -> key !in claimedBubbles && ChatBubbleParser.confirms(b, s.draft, s.minuteOfDay) }
+                ?: bubbles.lastOrNull { (key, b) ->
+                    key !in claimedBubbles && b.amountPaise == s.draft.amountPaise && b.minuteOfDay >= s.minuteOfDay
+                }
             bubble?.let { (key, _) ->
                 claimedBubbles += key
                 s.bubbleKey = key
@@ -178,7 +183,16 @@ class PaymentAccessibilityService : AccessibilityService() {
         val time = LocalTime.now()
         val nowMinute = time.hour * 60 + time.minute
         val known = recorded.getOrPut(app) { mutableListOf() }
-        for (b in BubbleMatcher.unrecorded(bubbles, known, claimedBubbles, nowMinute, FRESH_BUBBLE_MINUTES)) {
+        val linked = mutableListOf<Pair<RecordedPayment, ChatBubble>>()
+        val fresh = BubbleMatcher.unrecorded(bubbles, known, claimedBubbles, nowMinute, FRESH_BUBBLE_MINUTES) { r, b -> linked += r to b }
+        // The bubble shows what was actually sent: use its note when the one read at the tap differs.
+        for ((r, b) in linked) {
+            if (b.note != null && !b.note.equals(r.draft.note, ignoreCase = true) && r.id > 0) {
+                DiagnosticLog.line(this, "bubble note for #${r.id}: ${r.draft.note} -> ${b.note}")
+                container.repository.applyOutcome(r.id, VerificationStatus.SUCCESS_REPORTED, note = b.note)
+            }
+        }
+        for (b in fresh) {
             DiagnosticLog.line(this, "new bubble: ${app.name} amount=${b.amountPaise} note=${b.note} payee=${b.payee}")
             val transaction = Transaction(
                     description = b.note ?: b.payee,
