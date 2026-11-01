@@ -120,3 +120,28 @@ class PaySheetTest {
     @Test fun `home screen pay buttons are not a sheet`() =
         assertNull(PaymentFormParser.parsePaySheet(listOf("Pay anyone", "Tap & Pay", "Pay").map { ScreenNode(it) }))
 }
+
+class AutocorrectedNoteTest {
+    @Test fun `a bubble whose note was autocorrected still belongs to the pay tap`() {
+        // Real PhonePe log: tap read "Testun", the sent note (and bubble) was "Testing".
+        val tap = RecordedPayment(115, PaymentDraft(100, "Testun", "SHOP"), 14 * 60 + 40, 0)
+        val bubble = ChatBubble(100, ScreenStatus.SUCCESS, "Testing", 14 * 60 + 40)
+        val linked = mutableListOf<Pair<Long, String?>>()
+        val fresh = BubbleMatcher.unrecorded(BubbleMatcher.keyed(listOf(bubble)), listOf(tap), mutableSetOf(), 14 * 60 + 40, 3) { r, b ->
+            linked += r.id to b.note
+        }
+        assertTrue(fresh.isEmpty())
+        assertEquals(listOf(115L to "Testing"), linked)
+    }
+
+    @Test fun `with two taps the matching note wins`() {
+        val lunch = RecordedPayment(1, PaymentDraft(100, "Lunch", null), 14 * 60, 0)
+        val tea = RecordedPayment(2, PaymentDraft(100, "Tea", null), 14 * 60, 0)
+        val linked = mutableListOf<Long>()
+        BubbleMatcher.unrecorded(
+            BubbleMatcher.keyed(listOf(ChatBubble(100, ScreenStatus.SUCCESS, "Tea", 14 * 60))),
+            listOf(lunch, tea), mutableSetOf(), 14 * 60 + 1, 3,
+        ) { r, _ -> linked += r.id }
+        assertEquals(listOf(2L), linked)
+    }
+}
